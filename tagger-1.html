@@ -1,0 +1,1540 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>バドミントン ラリータグ付け・分析</title>
+<style>
+  :root{
+    --court:#1f6b46;
+    --court-dark:#164f34;
+    --bg:#f4f7f4;
+    --card:#ffffff;
+    --ink:#132018;
+    --sub:#4a5c50;
+    --border:#cfe0d5;
+    --win:#1d5dbf;
+    --win-dark:#154694;
+    --lose:#c0392b;
+    --lose-dark:#992d21;
+    --accent:#e8f2ec;
+    --warn:#b8860b;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    -webkit-tap-highlight-color:transparent;
+    padding-bottom:24px;
+  }
+  header.app-header{
+    background:var(--court-dark);
+    color:#fff;
+    padding:10px 14px;
+    position:sticky;
+    top:0;
+    z-index:50;
+    box-shadow:0 2px 6px rgba(0,0,0,.15);
+  }
+  header.app-header h1{
+    font-size:1.05em;
+    margin:0 0 6px 0;
+    font-weight:700;
+    letter-spacing:.02em;
+  }
+  .tabbar{
+    display:flex;
+    gap:4px;
+    overflow-x:auto;
+  }
+  .tabbar button{
+    flex:1 0 auto;
+    background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.25);
+    color:#e9f3ec;
+    padding:8px 10px;
+    border-radius:8px;
+    font-size:.85em;
+    font-weight:600;
+    min-height:40px;
+    white-space:nowrap;
+  }
+  .tabbar button.active{
+    background:#fff;
+    color:var(--court-dark);
+    border-color:#fff;
+  }
+  main{
+    max-width:760px;
+    margin:0 auto;
+    padding:10px 10px 40px;
+  }
+  section.view{display:none;}
+  section.view.active{display:block;}
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:12px;
+    margin-bottom:12px;
+  }
+  .card h2{
+    font-size:.95em;
+    margin:0 0 8px 0;
+    color:var(--court);
+    border-bottom:2px solid var(--accent);
+    padding-bottom:6px;
+  }
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .row > label{font-size:.82em;color:var(--sub);}
+  input[type=text],input[type=date],select,textarea{
+    font-size:.95em;
+    padding:8px;
+    border:1px solid var(--border);
+    border-radius:8px;
+    background:#fff;
+    color:var(--ink);
+    min-height:40px;
+  }
+  textarea{width:100%;min-height:50px;font-family:inherit;}
+
+  /* ---- 動画エリア ---- */
+  .video-wrap{
+    background:#0e1712;
+    border-radius:12px;
+    overflow:hidden;
+    margin-bottom:8px;
+    position:relative;
+  }
+  video{width:100%;display:block;max-height:46vh;background:#000;}
+  .video-controls{
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+    padding:8px;
+    background:#0e1712;
+  }
+  .video-controls button{
+    background:#233a2c;
+    color:#eaf5ee;
+    border:1px solid #37543f;
+    border-radius:8px;
+    padding:8px 10px;
+    font-size:.8em;
+    min-height:40px;
+    font-weight:600;
+  }
+  .video-controls button.rate-active{
+    background:var(--court);
+    border-color:#fff;
+  }
+  .no-video-placeholder{
+    padding:26px 12px;
+    text-align:center;
+    color:#9fb3a6;
+    font-size:.85em;
+  }
+
+  /* ---- スコア表示 ---- */
+  .scoreboard{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:18px;
+    padding:8px 0 12px;
+  }
+  .scoreboard .side{
+    text-align:center;
+  }
+  .scoreboard .side .label{font-size:.72em;color:var(--sub);}
+  .scoreboard .side.us .num{color:var(--win);}
+  .scoreboard .side.them .num{color:var(--lose);}
+  .scoreboard .num{font-size:2em;font-weight:800;line-height:1;}
+  .scoreboard .vs{font-size:.8em;color:var(--sub);}
+  .serve-indicator{
+    text-align:center;
+    font-size:.78em;
+    color:var(--sub);
+    margin-top:-6px;
+    margin-bottom:8px;
+  }
+
+  /* ---- ウィザードボタン群(タグ付け・親指操作) ---- */
+  .wizard-title{
+    font-size:.85em;
+    color:var(--sub);
+    margin-bottom:6px;
+    font-weight:600;
+  }
+  .btn-grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:8px;
+  }
+  .btn-grid.cols2{grid-template-columns:repeat(2,1fr);}
+  .btn-grid button{
+    min-height:56px;
+    border-radius:10px;
+    border:1px solid var(--border);
+    background:var(--accent);
+    color:var(--ink);
+    font-size:.88em;
+    font-weight:700;
+    line-height:1.25;
+    padding:6px 4px;
+  }
+  .btn-grid button:active{transform:scale(.97);}
+  .btn-grid button.big-win{
+    background:var(--win);
+    color:#fff;
+    border-color:var(--win-dark);
+    grid-column:span 3;
+    min-height:64px;
+    font-size:1.05em;
+  }
+  .btn-grid button.big-lose{
+    background:var(--lose);
+    color:#fff;
+    border-color:var(--lose-dark);
+    grid-column:span 3;
+    min-height:64px;
+    font-size:1.05em;
+  }
+  .btn-grid button.special{
+    background:#fff6e0;
+    border-color:var(--warn);
+    color:#7a5c00;
+  }
+  .btn-grid button.origin-none{
+    background:#fff;
+    border-style:dashed;
+    color:var(--sub);
+  }
+
+  .actor-toggle{
+    display:flex;
+    gap:8px;
+    margin:8px 0;
+    justify-content:center;
+  }
+  .actor-toggle button{
+    flex:1;
+    min-height:44px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:#fff;
+    font-size:.85em;
+    font-weight:600;
+    color:var(--sub);
+  }
+  .actor-toggle button.selected{
+    background:var(--court);
+    color:#fff;
+    border-color:var(--court-dark);
+  }
+
+  .util-row{
+    display:flex;
+    gap:8px;
+    margin-top:10px;
+  }
+  .util-row button{
+    flex:1;
+    min-height:48px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:#fff;
+    color:var(--sub);
+    font-size:.85em;
+    font-weight:600;
+  }
+  .util-row button.danger{color:var(--lose);border-color:#e6c3bd;}
+
+  /* ---- レコード一覧 ---- */
+  .record-list{
+    max-height:220px;
+    overflow-y:auto;
+    border:1px solid var(--border);
+    border-radius:10px;
+  }
+  .record-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:8px 10px;
+    border-bottom:1px solid var(--border);
+    font-size:.8em;
+  }
+  .record-row:last-child{border-bottom:none;}
+  .record-row .tag{
+    display:inline-block;
+    padding:2px 6px;
+    border-radius:5px;
+    font-weight:700;
+    font-size:.9em;
+    margin-right:6px;
+  }
+  .record-row .tag.won{background:#e2ecfb;color:var(--win-dark);}
+  .record-row .tag.lost{background:#f8e2df;color:var(--lose-dark);}
+  .record-row .ts{
+    color:var(--court);
+    text-decoration:underline;
+    font-variant-numeric:tabular-nums;
+    background:none;
+    border:none;
+    padding:0;
+    font-size:1em;
+  }
+  .record-row .origin-mark{color:var(--warn);font-weight:700;}
+
+  /* ---- ダッシュボード ---- */
+  .subtabbar{
+    display:flex;
+    gap:4px;
+    overflow-x:auto;
+    margin-bottom:10px;
+  }
+  .subtabbar button{
+    flex:0 0 auto;
+    background:var(--accent);
+    border:1px solid var(--border);
+    color:var(--court-dark);
+    padding:7px 10px;
+    border-radius:20px;
+    font-size:.78em;
+    font-weight:700;
+    min-height:34px;
+  }
+  .subtabbar button.active{
+    background:var(--court);
+    color:#fff;
+  }
+  table.stat-table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:.78em;
+  }
+  table.stat-table th,table.stat-table td{
+    border:1px solid var(--border);
+    padding:5px 4px;
+    text-align:center;
+  }
+  table.stat-table th{background:var(--accent);color:var(--court-dark);}
+  table.stat-table td.rowhead{
+    background:var(--accent);
+    font-weight:700;
+    text-align:left;
+  }
+  .heat-cell{position:relative;}
+  .heat-cell .cnt{position:relative;z-index:1;font-weight:700;}
+
+  svg.chart{width:100%;height:auto;}
+  .legend{display:flex;gap:12px;font-size:.75em;color:var(--sub);flex-wrap:wrap;margin-top:6px;}
+  .legend .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle;}
+
+  .empty-msg{
+    text-align:center;
+    color:var(--sub);
+    font-size:.85em;
+    padding:20px 8px;
+  }
+
+  select.cell-select{width:100%;}
+
+  .dirty-flag{
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    font-size:.72em;
+    background:#fff3e0;
+    color:#8a5300;
+    padding:3px 8px;
+    border-radius:12px;
+    border:1px solid #f0c98a;
+  }
+  .clean-flag{
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    font-size:.72em;
+    background:#e8f2ec;
+    color:var(--court-dark);
+    padding:3px 8px;
+    border-radius:12px;
+    border:1px solid var(--border);
+  }
+
+  .session-select-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+  .session-select-row select{flex:1;min-width:140px;}
+
+  .csv-pre{
+    background:#0e1712;
+    color:#c9e6d3;
+    font-size:.68em;
+    padding:8px;
+    border-radius:8px;
+    max-height:160px;
+    overflow:auto;
+    white-space:pre;
+  }
+  .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .field-grid .full{grid-column:span 2;}
+  .field-grid label{font-size:.75em;color:var(--sub);display:block;margin-bottom:2px;}
+  footer.hint{
+    text-align:center;
+    font-size:.72em;
+    color:var(--sub);
+    margin-top:6px;
+  }
+  .undo-toast{
+    position:fixed;
+    left:50%;
+    bottom:14px;
+    transform:translateX(-50%);
+    z-index:100;
+    background:#132018;
+    color:#fff;
+    padding:10px 14px;
+    border-radius:10px;
+    display:flex;
+    align-items:center;
+    gap:12px;
+    font-size:.85em;
+    box-shadow:0 4px 14px rgba(0,0,0,.3);
+    max-width:90vw;
+  }
+  .undo-toast button{
+    background:var(--court);
+    color:#fff;
+    border:none;
+    border-radius:6px;
+    padding:6px 10px;
+    font-weight:700;
+    min-height:36px;
+    white-space:nowrap;
+  }
+  a.export-btn, button.link-btn{
+    display:inline-block;
+    background:var(--court);
+    color:#fff;
+    border:none;
+    border-radius:8px;
+    padding:10px 14px;
+    font-size:.85em;
+    font-weight:700;
+    text-decoration:none;
+    min-height:44px;
+  }
+</style>
+</head>
+<body>
+
+<div class="undo-toast" id="undoToast" style="display:none;">
+  <span>直前のラリーを削除しました</span>
+  <button id="undoRestoreBtn">元に戻す</button>
+</div>
+
+<header class="app-header">
+  <h1>🏸 バドミントン ラリータグ付け・分析</h1>
+  <div class="tabbar" id="mainTabbar">
+    <button data-view="record" class="active">記録</button>
+    <button data-view="review">レビュー</button>
+    <button data-view="dashboard">ダッシュボード</button>
+    <button data-view="data">データ管理</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- =================== 動画エリア(記録/レビュー共通・タブ切替の影響を受けない) =================== -->
+  <div class="card" id="videoCard">
+    <div class="video-wrap">
+      <div class="no-video-placeholder" id="noVideoMsg">
+        動画なしモード(コートサイドでのライブ記録)<br>
+        <input type="file" id="videoFileInput" accept="video/*"> で動画を読み込むと同期記録できます
+      </div>
+      <video id="mainVideo" playsinline controls></video>
+    </div>
+    <div class="video-controls" id="videoControlsCommon" style="display:none;">
+      <button data-rate="1">1x</button>
+      <button data-rate="1.5">1.5x</button>
+      <button data-rate="2">2x</button>
+      <button id="seekBackBtn">⏪ 10秒戻る</button>
+    </div>
+    <div class="video-controls" id="videoControlsReview" style="display:none;">
+      <button id="reviewJumpBtn">失点シーンへジャンプ(-5秒)</button>
+      <button id="reviewFramePrev">◀ 0.2秒戻る</button>
+      <button id="reviewFrameNext">0.2秒進む ▶</button>
+    </div>
+  </div>
+
+  <!-- =================== 記録(ライブパス) =================== -->
+  <section class="view active" id="view-record">
+
+    <div class="card" id="sessionBar">
+      <h2>セッション</h2>
+      <div class="session-select-row">
+        <select id="sessionSelect"></select>
+        <button class="link-btn" id="newSessionBtn">＋新規</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="scoreboard">
+        <div class="side us"><div class="label">自分たち</div><div class="num" id="scoreUs">0</div></div>
+        <div class="vs">–</div>
+        <div class="side them"><div class="label">相手</div><div class="num" id="scoreThem">0</div></div>
+      </div>
+      <div class="serve-indicator" id="serveIndicator">サーブ: -</div>
+      <div class="row" style="justify-content:center;">
+        <button class="link-btn" id="nextGameBtn" style="background:var(--sub);">次のゲームへ</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="wizard-title" id="wizardTitle">タップ1: 結果</div>
+      <div class="actor-toggle" id="actorToggle" style="display:none;">
+        <button data-actor="self" class="selected">自分</button>
+        <button data-actor="partner">パートナー</button>
+      </div>
+      <div class="btn-grid" id="wizardButtons"></div>
+      <div class="util-row">
+        <button id="skipBtn">スキップ(記録しない)</button>
+        <button id="undoBtn" class="danger">取り消し(直前削除)</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>直近の記録</h2>
+      <div class="record-list" id="recentRecordList"></div>
+    </div>
+
+  </section>
+
+  <!-- =================== レビュー(起点マーク) =================== -->
+  <section class="view" id="view-review">
+    <div class="card">
+      <h2>失点ラリー連続レビュー</h2>
+      <p style="font-size:.8em;color:var(--sub);margin-top:0;">
+        記録済みの失点ラリーのみを順番に再生し、「主導権を失った起点」があれば1つだけマークします。迷ったら付けません。
+      </p>
+      <div class="row" id="reviewNav" style="justify-content:space-between;">
+        <button class="link-btn" id="reviewPrevBtn">← 前の失点</button>
+        <span id="reviewPos" style="font-size:.8em;color:var(--sub);">- / -</span>
+        <button class="link-btn" id="reviewNextBtn">次の失点 →</button>
+      </div>
+    </div>
+
+    <div class="card" id="originCard">
+      <h2>起点マーク: ショット種 × 欠陥</h2>
+      <div id="currentOriginStatus" style="font-size:.82em;color:var(--sub);margin-bottom:6px;"></div>
+      <div class="wizard-title" id="originStepTitle">ショット種を選択</div>
+      <div class="btn-grid" id="originButtons"></div>
+      <div class="util-row">
+        <button id="originClearBtn">起点マークを削除</button>
+        <button id="originNoneBtn">起点なし(このまま次へ)</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== ダッシュボード =================== -->
+  <section class="view" id="view-dashboard">
+    <div class="card">
+      <div class="row" style="justify-content:space-between;">
+        <div class="row">
+          <label><input type="radio" name="scopeMode" value="single" checked> 単一セッション</label>
+          <label><input type="radio" name="scopeMode" value="all"> 複数セッション横断</label>
+        </div>
+      </div>
+    </div>
+    <div class="subtabbar" id="dashSubtabs">
+      <button data-d="dist" class="active">①失点分布</button>
+      <button data-d="cross">②ショット×局面</button>
+      <button data-d="origin">③起点分析</button>
+      <button data-d="actor">④自責比率</button>
+      <button data-d="trend">⑤推移</button>
+      <button data-d="csv">⑥CSV出力</button>
+    </div>
+    <div class="card" id="dashContent"></div>
+  </section>
+
+  <!-- =================== データ管理 =================== -->
+  <section class="view" id="view-data">
+    <div class="card">
+      <h2>保存状態</h2>
+      <div id="dirtyIndicator"></div>
+      <p style="font-size:.78em;color:var(--sub);">localStorageは端末内の自動保存(補助)です。正本はエクスポートしたJSONファイルとして扱ってください。</p>
+    </div>
+    <div class="card">
+      <h2>セッション情報の編集</h2>
+      <div class="field-grid">
+        <div><label>日付</label><input type="date" id="editDate"></div>
+        <div><label>先にサーブ(このセッション既定)</label>
+          <select id="editFirstServe"><option value="us">自分たち</option><option value="them">相手</option></select>
+        </div>
+        <div class="full"><label>ラベル</label><input type="text" id="editLabel" placeholder="例: 火曜練習 ゲーム練"></div>
+        <div class="full"><label>パートナー</label><input type="text" id="editPartner" placeholder="例: ○○さん"></div>
+      </div>
+      <div class="util-row">
+        <button class="link-btn" id="saveSessionMetaBtn">保存</button>
+        <button class="danger" id="deleteSessionBtn">このセッションを削除</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>バックアップ(JSON)</h2>
+      <div class="util-row">
+        <button class="link-btn" id="exportJsonBtn">全データをJSONエクスポート</button>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <label>JSONファイルを読み込み(既存データは上書きされます):</label>
+        <input type="file" id="importJsonInput" accept="application/json">
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="hint">タクソノミー定義・指標定義はscript内 TAXONOMY / DEFECTS 等の定数を編集して改訂できます。</footer>
+
+<script>
+/* ==========================================================================
+   タクソノミー定数(ここを編集すれば分類粒度を改訂できる)
+   ========================================================================== */
+
+// ショット種(9種)。ライブ入力タップ3で使用。origin(起点マーク)でも同じ9種を使用。
+const SHOT_TYPES = [
+  {code:'SERVE',   label:'サーブ'},
+  {code:'RECEIVE', label:'レシーブ'},
+  {code:'LOB',     label:'ロブ'},
+  {code:'CLEAR',   label:'クリア'},
+  {code:'DROP',    label:'ドロップ'},
+  {code:'HAIRPIN', label:'ヘアピン'},
+  {code:'DRIVE',   label:'ドライブ'},
+  {code:'SMASH',   label:'スマッシュ'},
+  {code:'PUSH',    label:'プッシュ'},
+];
+
+// 特殊原因(3種)。選択するとタップ4(欠陥)をスキップする。失点時のみ。
+const SPECIAL_CAUSES = [
+  {code:'ROTATION', label:'ローテーション\nミス'},
+  {code:'MIAI',      label:'お見合い・\n譲り合い'},
+  {code:'FORCED',    label:'相手の決定打\n(非自責)'},
+];
+
+// 欠陥(4種)。ショット種選択時のみタップ4で表示。
+const DEFECTS = [
+  {code:'ERR',        label:'直接ミス',   example:'ネット/アウト/空振り'},
+  {code:'SHORT_LOW',  label:'浅い・低い', example:'ロブ浅い/クリア浅い/サーブ浮き'},
+  {code:'COURSE',     label:'コース甘い', example:'スマッシュが正面/配球が単調'},
+  {code:'LATE',       label:'体勢・遅れ', example:'準備遅れ/打点が落ちた'},
+];
+
+// 得点原因(5分類)。得点時のタップ3で使用。
+const WIN_CAUSES = [
+  {code:'SMASH',       label:'スマッシュ'},
+  {code:'FRONT_PUSH',  label:'前衛プッシュ\n・ブロック'},
+  {code:'BUILT',       label:'配球で\n崩した'},
+  {code:'SERVE_AREA',  label:'サーブ周り'},
+  {code:'OPP_ERROR',   label:'相手ミス'},
+];
+
+// 局面(3種)。タップ2で使用。
+const PHASES = [
+  {code:'serve', label:'サーブ周り\n(1〜3球目)'},
+  {code:'early', label:'前半\n(〜6球目)'},
+  {code:'rally', label:'ラリー戦'},
+];
+
+function shotLabel(code){
+  const s = SHOT_TYPES.find(x=>x.code===code); if(s) return s.label.replace('\n','');
+  const sp = SPECIAL_CAUSES.find(x=>x.code===code); if(sp) return sp.label.replace('\n','');
+  return code || '-';
+}
+function defectLabel(code){
+  const d = DEFECTS.find(x=>x.code===code); return d? d.label : '-';
+}
+function phaseLabel(code){
+  const p = PHASES.find(x=>x.code===code); return p? p.label.replace('\n','') : '-';
+}
+function winCauseLabel(code){
+  const w = WIN_CAUSES.find(x=>x.code===code); return w? w.label.replace('\n','') : '-';
+}
+function isSpecialCause(code){ return SPECIAL_CAUSES.some(x=>x.code===code); }
+</script>
+
+<script>
+/* ==========================================================================
+   状態管理・永続化
+   ========================================================================== */
+const DB_KEY = 'badminton_tagger_db_v1';
+const META_KEY = 'badminton_tagger_meta_v1';
+
+function uuid(){
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c=>{
+    const r = Math.random()*16|0;
+    const v = c==='x' ? r : (r&0x3|0x8);
+    return v.toString(16);
+  });
+}
+
+function loadDB(){
+  try{
+    const raw = localStorage.getItem(DB_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){ console.error('DB読込エラー', e); }
+  return { schemaVersion:1, sessions:[] };
+}
+function saveDB(){
+  localStorage.setItem(DB_KEY, JSON.stringify(db));
+  meta.dirty = true;
+  saveMeta();
+  renderDirtyIndicator();
+}
+function loadMeta(){
+  try{
+    const raw = localStorage.getItem(META_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return { currentSessionId:null, lastExportAt:null, dirty:false };
+}
+function saveMeta(){
+  localStorage.setItem(META_KEY, JSON.stringify(meta));
+}
+
+let db = loadDB();
+let meta = loadMeta();
+
+function getCurrentSession(){
+  return db.sessions.find(s=>s.id===meta.currentSessionId) || null;
+}
+function ensureSession(){
+  if(!getCurrentSession()){
+    if(db.sessions.length>0){
+      meta.currentSessionId = db.sessions[0].id;
+      saveMeta();
+    } else {
+      createNewSession();
+    }
+  }
+}
+function createNewSession(){
+  const today = new Date().toISOString().slice(0,10);
+  const s = {
+    id: uuid(),
+    date: today,
+    label: '',
+    partner: '',
+    videoFileName: '',
+    firstServe: 'us',       // このセッション既定の先サーブ(ゲーム毎に上書き可)
+    gameServeStarts: {1:'us'}, // ゲーム番号→先にサーブしたチーム
+    rallies: []
+  };
+  db.sessions.push(s);
+  meta.currentSessionId = s.id;
+  saveDB(); saveMeta();
+  return s;
+}
+
+/* ==========================================================================
+   スコア・サーブ権の自動計算
+   ========================================================================== */
+// 「次のゲームへ」で予約されたゲーム番号。DB(JSON)には保存しない一時状態。
+// セッションid→ゲーム番号。該当ラリーが1件記録されるとfinalizeRally側で消える。
+let pendingGameOverride = {};
+
+function currentGameNumber(session){
+  if(pendingGameOverride[session.id]) return pendingGameOverride[session.id];
+  if(session.rallies.length===0) return 1;
+  return session.rallies[session.rallies.length-1].game;
+}
+function ralliesOfGame(session, game){
+  return session.rallies.filter(r=>r.game===game);
+}
+function computeScore(session, game){
+  const rs = ralliesOfGame(session, game);
+  let us=0, them=0;
+  rs.forEach(r=>{ if(r.result==='won') us++; else them++; });
+  return {us, them};
+}
+function computeServingSide(session, game, uptoIndexExclusive){
+  // uptoIndexExclusive番目(そのゲーム内でのindex)のラリーのサーブ側を求める
+  const rs = ralliesOfGame(session, game);
+  const firstServe = (session.gameServeStarts && session.gameServeStarts[game]) || session.firstServe || 'us';
+  if(uptoIndexExclusive<=0) return firstServe;
+  const prev = rs[uptoIndexExclusive-1];
+  return prev.result==='won' ? 'us' : 'them';
+}
+function nextServingSide(session){
+  const game = currentGameNumber(session);
+  const rs = ralliesOfGame(session, game);
+  return computeServingSide(session, game, rs.length);
+}
+
+/* ==========================================================================
+   ライブ入力ウィザード
+   ========================================================================== */
+let wizard = { step:'result', result:null, phase:null, shot:null, actor:'self' };
+
+function resetWizard(){
+  wizard = { step:'result', result:null, phase:null, shot:null, actor:'self' };
+  renderWizard();
+}
+
+function renderWizard(){
+  const titleEl = document.getElementById('wizardTitle');
+  const gridEl = document.getElementById('wizardButtons');
+  const actorToggle = document.getElementById('actorToggle');
+  gridEl.innerHTML = '';
+  gridEl.style.gridTemplateColumns = '';
+  gridEl.classList.remove('cols2');
+  actorToggle.style.display = (wizard.result==='lost') ? 'flex' : 'none';
+
+  if(wizard.step==='result'){
+    titleEl.textContent = 'タップ1: 結果';
+    const winBtn = mkBtn('得点','big-win', ()=>{ wizard.result='won'; wizard.step='phase'; renderWizard(); });
+    const loseBtn = mkBtn('失点','big-lose', ()=>{ wizard.result='lost'; wizard.step='phase'; renderWizard(); });
+    gridEl.appendChild(winBtn); gridEl.appendChild(loseBtn);
+  } else if(wizard.step==='phase'){
+    titleEl.textContent = 'タップ2: 局面';
+    gridEl.style.gridTemplateColumns='repeat(1,1fr)';
+    PHASES.forEach(p=>{
+      gridEl.appendChild(mkBtn(p.label,'', ()=>{ wizard.phase=p.code; wizard.step='shot'; renderWizard(); }));
+    });
+  } else if(wizard.step==='shot'){
+    if(wizard.result==='won'){
+      titleEl.textContent = 'タップ3: 得点原因';
+      WIN_CAUSES.forEach(w=>{
+        gridEl.appendChild(mkBtn(w.label,'', ()=>{ finalizeRally({winCause:w.code}); }));
+      });
+    } else {
+      titleEl.textContent = 'タップ3: ショット種 / 特殊原因';
+      SHOT_TYPES.forEach(s=>{
+        gridEl.appendChild(mkBtn(s.label,'', ()=>{ wizard.shot=s.code; wizard.step='defect'; renderWizard(); }));
+      });
+      SPECIAL_CAUSES.forEach(sp=>{
+        gridEl.appendChild(mkBtn(sp.label,'special', ()=>{
+          finalizeRally({shot:sp.code, defect:null});
+        }));
+      });
+    }
+  } else if(wizard.step==='defect'){
+    titleEl.textContent = 'タップ4: 欠陥 (' + shotLabel(wizard.shot) + ')';
+    DEFECTS.forEach(d=>{
+      gridEl.appendChild(mkBtn(d.label,'', ()=>{ finalizeRally({shot:wizard.shot, defect:d.code}); }));
+    });
+  }
+}
+function mkBtn(label, cls, onClick){
+  const b = document.createElement('button');
+  b.textContent = label;
+  if(cls) b.className = cls;
+  b.addEventListener('click', onClick);
+  return b;
+}
+document.getElementById('actorToggle').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-actor]');
+  if(!btn) return;
+  wizard.actor = btn.dataset.actor;
+  document.querySelectorAll('#actorToggle button').forEach(b=>b.classList.toggle('selected', b===btn));
+});
+
+function finalizeRally(extra){
+  const session = getCurrentSession();
+  if(!session) return;
+  const game = currentGameNumber(session);
+  const rs = ralliesOfGame(session, game);
+  const servingSide = computeServingSide(session, game, rs.length);
+  const video = document.getElementById('mainVideo');
+  const hasVideo = !!video.src;
+  const rally = {
+    seq: session.rallies.length+1,
+    game: game,
+    result: wizard.result,
+    phase: wizard.phase,
+    shot: extra.shot!==undefined ? extra.shot : null,
+    defect: extra.defect!==undefined ? extra.defect : null,
+    winCause: extra.winCause!==undefined ? extra.winCause : null,
+    actor: wizard.result==='lost' ? wizard.actor : null,
+    servingSide: servingSide,
+    videoTime: hasVideo ? Number(video.currentTime.toFixed(2)) : null,
+    origin: null,
+    memo: ''
+  };
+  delete pendingGameOverride[session.id];
+  session.rallies.push(rally);
+  saveDB();
+  resetWizard();
+  renderScoreboard();
+  renderRecentRecords();
+}
+
+function skipRally(){
+  // 記録しない(何も追加しない)。UI上のフィードバックのみ。
+  resetWizard();
+}
+// タグ付けのリズムを止めないよう、取り消しは確認ダイアログなしで即実行する。
+// 誤タップ対策として、数秒間だけ「元に戻す」を表示する(ワンタップで復元可能)。
+let lastDeletedRally = null;
+let undoToastTimer = null;
+
+function undoLastRally(){
+  const session = getCurrentSession();
+  if(!session || session.rallies.length===0) return;
+  lastDeletedRally = session.rallies.pop();
+  saveDB();
+  renderScoreboard();
+  renderRecentRecords();
+  showUndoToast();
+}
+function showUndoToast(){
+  const toast = document.getElementById('undoToast');
+  clearTimeout(undoToastTimer);
+  toast.style.display = 'flex';
+  undoToastTimer = setTimeout(()=>{
+    toast.style.display = 'none';
+    lastDeletedRally = null;
+  }, 5000);
+}
+document.getElementById('undoRestoreBtn').addEventListener('click', ()=>{
+  const session = getCurrentSession();
+  if(!session || !lastDeletedRally) return;
+  session.rallies.push(lastDeletedRally);
+  lastDeletedRally = null;
+  clearTimeout(undoToastTimer);
+  document.getElementById('undoToast').style.display = 'none';
+  saveDB();
+  renderScoreboard();
+  renderRecentRecords();
+});
+document.getElementById('skipBtn').addEventListener('click', skipRally);
+document.getElementById('undoBtn').addEventListener('click', undoLastRally);
+
+function renderScoreboard(){
+  const session = getCurrentSession();
+  if(!session){ return; }
+  const game = currentGameNumber(session);
+  const sc = computeScore(session, game);
+  document.getElementById('scoreUs').textContent = sc.us;
+  document.getElementById('scoreThem').textContent = sc.them;
+  const serve = nextServingSide(session);
+  document.getElementById('serveIndicator').textContent =
+    `第${game}ゲーム / 次のサーブ: ${serve==='us'?'自分たち':'相手'}`;
+}
+document.getElementById('nextGameBtn').addEventListener('click', ()=>{
+  const session = getCurrentSession();
+  if(!session) return;
+  if(session.rallies.length===0){ alert('このゲームはまだラリーが記録されていません。'); return; }
+  const nextGame = currentGameNumber(session) + 1;
+  const who = confirm('次のゲーム、先にサーブするのは「自分たち」ですか？(キャンセル=相手)');
+  session.gameServeStarts = session.gameServeStarts || {};
+  session.gameServeStarts[nextGame] = who ? 'us' : 'them';
+  pendingGameOverride[session.id] = nextGame;
+  saveDB();
+  renderScoreboard();
+  alert(`第${nextGame}ゲームの記録を開始します。`);
+});
+
+function renderRecentRecords(){
+  const session = getCurrentSession();
+  const listEl = document.getElementById('recentRecordList');
+  listEl.innerHTML = '';
+  if(!session || session.rallies.length===0){
+    listEl.innerHTML = '<div class="empty-msg">まだ記録がありません</div>';
+    return;
+  }
+  const recent = session.rallies.slice(-15).reverse();
+  recent.forEach(r=>{
+    const row = document.createElement('div');
+    row.className = 'record-row';
+    const left = document.createElement('div');
+    const tag = document.createElement('span');
+    tag.className = 'tag ' + r.result;
+    tag.textContent = r.result==='won' ? '○得点' : '●失点';
+    left.appendChild(tag);
+    const desc = document.createElement('span');
+    let descText = '';
+    if(r.result==='won'){
+      descText = winCauseLabel(r.winCause);
+    } else {
+      descText = shotLabel(r.shot) + (r.defect? '・'+defectLabel(r.defect) : '');
+      if(r.actor==='partner') descText += '(パートナー)';
+    }
+    if(r.origin) descText += ' <span class="origin-mark">★起点あり</span>';
+    desc.innerHTML = ' #' + r.seq + ' ' + descText;
+    left.appendChild(desc);
+    row.appendChild(left);
+    if(r.videoTime!==null){
+      const tsBtn = document.createElement('button');
+      tsBtn.className = 'ts';
+      tsBtn.textContent = formatTime(r.videoTime);
+      tsBtn.addEventListener('click', ()=>{
+        const video = document.getElementById('mainVideo');
+        if(video.src){ video.currentTime = r.videoTime; video.pause(); switchView('record'); }
+      });
+      row.appendChild(tsBtn);
+    }
+    listEl.appendChild(row);
+  });
+}
+function formatTime(sec){
+  if(sec===null||sec===undefined) return '-';
+  const m = Math.floor(sec/60);
+  const s = Math.floor(sec%60);
+  return m + ':' + String(s).padStart(2,'0');
+}
+
+/* ==========================================================================
+   動画同期
+   ---------------------------------------------------------------------
+   <video>要素はタブ切替(display:none)の影響を受けない共有カード(videoCard)
+   に1つだけ置き、記録タブ・レビュータブの両方から同じ要素を操作する。
+   タブごとに表示するコントロール行だけを切り替える。
+   ========================================================================== */
+const mainVideo = document.getElementById('mainVideo');
+let currentView = 'record';
+
+function updateVideoAreaForView(view){
+  const card = document.getElementById('videoCard');
+  const hasVideo = !!mainVideo.src;
+  card.style.display = (view==='record' || view==='review') ? 'block' : 'none';
+  document.getElementById('noVideoMsg').style.display = hasVideo ? 'none' : 'block';
+  document.getElementById('videoControlsCommon').style.display = hasVideo ? 'flex' : 'none';
+  document.getElementById('videoControlsReview').style.display = (hasVideo && view==='review') ? 'flex' : 'none';
+}
+
+document.getElementById('videoFileInput').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const url = URL.createObjectURL(file);
+  mainVideo.src = url;
+  const session = getCurrentSession();
+  if(session){ session.videoFileName = file.name; saveDB(); }
+  updateVideoAreaForView(currentView);
+  renderReview();
+});
+document.querySelectorAll('#videoControlsCommon button[data-rate]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    mainVideo.playbackRate = parseFloat(btn.dataset.rate);
+    document.querySelectorAll('#videoControlsCommon button[data-rate]').forEach(b=>b.classList.toggle('rate-active', b===btn));
+  });
+});
+document.getElementById('seekBackBtn').addEventListener('click', ()=>{
+  mainVideo.currentTime = Math.max(0, mainVideo.currentTime - 10);
+});
+
+/* ==========================================================================
+   セッション管理UI
+   ========================================================================== */
+function renderSessionSelect(){
+  const sel = document.getElementById('sessionSelect');
+  sel.innerHTML = '';
+  db.sessions.slice().reverse().forEach(s=>{
+    const opt = document.createElement('option');
+    opt.value = s.id;
+    opt.textContent = `${s.date} ${s.label||'(無題)'}`;
+    if(s.id===meta.currentSessionId) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+document.getElementById('sessionSelect').addEventListener('change', (e)=>{
+  meta.currentSessionId = e.target.value;
+  saveMeta();
+  onSessionSwitched();
+});
+document.getElementById('newSessionBtn').addEventListener('click', ()=>{
+  createNewSession();
+  renderSessionSelect();
+  onSessionSwitched();
+});
+function onSessionSwitched(){
+  mainVideo.removeAttribute('src'); mainVideo.load();
+  updateVideoAreaForView(currentView);
+  resetWizard();
+  renderScoreboard();
+  renderRecentRecords();
+  renderSessionEditFields();
+  renderReview();
+  renderDashboard();
+}
+function renderSessionEditFields(){
+  const s = getCurrentSession();
+  if(!s) return;
+  document.getElementById('editDate').value = s.date;
+  document.getElementById('editLabel').value = s.label;
+  document.getElementById('editPartner').value = s.partner;
+  document.getElementById('editFirstServe').value = s.firstServe;
+}
+document.getElementById('saveSessionMetaBtn').addEventListener('click', ()=>{
+  const s = getCurrentSession(); if(!s) return;
+  s.date = document.getElementById('editDate').value || s.date;
+  s.label = document.getElementById('editLabel').value;
+  s.partner = document.getElementById('editPartner').value;
+  s.firstServe = document.getElementById('editFirstServe').value;
+  saveDB();
+  renderSessionSelect();
+  renderScoreboard();
+  alert('保存しました');
+});
+document.getElementById('deleteSessionBtn').addEventListener('click', ()=>{
+  const s = getCurrentSession(); if(!s) return;
+  if(!confirm(`セッション「${s.date} ${s.label}」を削除します。元に戻せません。よろしいですか？`)) return;
+  db.sessions = db.sessions.filter(x=>x.id!==s.id);
+  meta.currentSessionId = db.sessions.length? db.sessions[0].id : null;
+  saveDB(); saveMeta();
+  if(!getCurrentSession()) createNewSession();
+  renderSessionSelect();
+  onSessionSwitched();
+});
+
+/* ==========================================================================
+   タブ切替
+   ========================================================================== */
+function switchView(view){
+  currentView = view;
+  document.querySelectorAll('section.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+view).classList.add('active');
+  document.querySelectorAll('#mainTabbar button').forEach(b=>b.classList.toggle('active', b.dataset.view===view));
+  updateVideoAreaForView(view);
+  if(view==='review') renderReview();
+  if(view==='dashboard') renderDashboard();
+  if(view==='data'){ renderSessionEditFields(); renderDirtyIndicator(); }
+}
+document.getElementById('mainTabbar').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-view]');
+  if(!btn) return;
+  switchView(btn.dataset.view);
+});
+
+/* ==========================================================================
+   保存インジケータ
+   ========================================================================== */
+function renderDirtyIndicator(){
+  const el = document.getElementById('dirtyIndicator');
+  if(!el) return;
+  if(meta.dirty){
+    el.innerHTML = '<span class="dirty-flag">⚠ 未エクスポートの変更あり</span>';
+  } else {
+    el.innerHTML = '<span class="clean-flag">✓ エクスポート済み</span>';
+  }
+}
+
+/* ==========================================================================
+   初期化
+   ========================================================================== */
+ensureSession();
+renderSessionSelect();
+renderSessionEditFields();
+resetWizard();
+renderScoreboard();
+renderRecentRecords();
+renderDirtyIndicator();
+updateVideoAreaForView(currentView);
+</script>
+
+<script>
+/* ==========================================================================
+   レビューパス: 失点ラリー連続レビュー + 起点マーク
+   ========================================================================== */
+let reviewIndex = 0;
+let originWizard = { step:'shot', shot:null };
+
+function lostRallies(session){
+  return session.rallies.filter(r=>r.result==='lost');
+}
+
+function renderReview(){
+  const session = getCurrentSession();
+  updateVideoAreaForView(currentView);
+
+  if(!session){ document.getElementById('reviewPos').textContent = '- / -'; return; }
+  const lost = lostRallies(session);
+  if(lost.length===0){
+    document.getElementById('reviewPos').textContent = '失点ラリーがありません';
+    document.getElementById('originCard').style.display = 'none';
+    return;
+  }
+  document.getElementById('originCard').style.display = 'block';
+  if(reviewIndex>=lost.length) reviewIndex = lost.length-1;
+  if(reviewIndex<0) reviewIndex = 0;
+  document.getElementById('reviewPos').textContent = `${reviewIndex+1} / ${lost.length}`;
+  originWizard = { step:'shot', shot:null };
+  renderOriginStatus();
+  renderOriginButtons();
+}
+document.getElementById('reviewPrevBtn').addEventListener('click', ()=>{
+  reviewIndex = Math.max(0, reviewIndex-1);
+  renderReview();
+});
+document.getElementById('reviewNextBtn').addEventListener('click', ()=>{
+  const session = getCurrentSession();
+  if(!session) return;
+  reviewIndex = Math.min(lostRallies(session).length-1, reviewIndex+1);
+  renderReview();
+});
+document.getElementById('reviewJumpBtn').addEventListener('click', ()=>{
+  const session = getCurrentSession(); if(!session) return;
+  const lost = lostRallies(session);
+  const r = lost[reviewIndex]; if(!r || r.videoTime===null) return;
+  mainVideo.currentTime = Math.max(0, r.videoTime - 5);
+  mainVideo.pause();
+});
+document.getElementById('reviewFramePrev').addEventListener('click', ()=>{
+  mainVideo.currentTime = Math.max(0, mainVideo.currentTime - 0.2);
+});
+document.getElementById('reviewFrameNext').addEventListener('click', ()=>{
+  mainVideo.currentTime = mainVideo.currentTime + 0.2;
+});
+
+function currentReviewRally(){
+  const session = getCurrentSession(); if(!session) return null;
+  const lost = lostRallies(session);
+  return lost[reviewIndex] || null;
+}
+
+function renderOriginStatus(){
+  const r = currentReviewRally();
+  const el = document.getElementById('currentOriginStatus');
+  if(!r){ el.textContent=''; return; }
+  let txt = `対象ラリー #${r.seq}(最終: ${shotLabel(r.shot)}${r.defect?'・'+defectLabel(r.defect):''})`;
+  if(r.origin){
+    txt += ` | 現在の起点: ${shotLabel(r.origin.shot)}・${defectLabel(r.origin.defect)} @ ${formatTime(r.origin.videoTime)}`;
+  } else {
+    txt += ' | 起点: 未設定';
+  }
+  el.textContent = txt;
+}
+
+function renderOriginButtons(){
+  const titleEl = document.getElementById('originStepTitle');
+  const gridEl = document.getElementById('originButtons');
+  gridEl.innerHTML = '';
+  if(originWizard.step==='shot'){
+    titleEl.textContent = '起点のショット種を選択(1ラリーにつき1つまで)';
+    SHOT_TYPES.forEach(s=>{
+      gridEl.appendChild(mkBtn(s.label,'', ()=>{
+        originWizard.shot = s.code;
+        originWizard.step = 'defect';
+        renderOriginButtons();
+      }));
+    });
+  } else {
+    titleEl.textContent = '起点の欠陥を選択 (' + shotLabel(originWizard.shot) + ')';
+    DEFECTS.forEach(d=>{
+      gridEl.appendChild(mkBtn(d.label,'', ()=>{ finalizeOrigin(originWizard.shot, d.code); }));
+    });
+  }
+}
+function finalizeOrigin(shot, defect){
+  const r = currentReviewRally(); if(!r) return;
+  r.origin = { shot, defect, videoTime: mainVideo.src ? Number(mainVideo.currentTime.toFixed(2)) : null };
+  saveDB();
+  renderOriginStatus();
+  renderRecentRecords();
+  // 次のラリーへ自動送り
+  const session = getCurrentSession();
+  const lost = lostRallies(session);
+  if(reviewIndex < lost.length-1){ reviewIndex++; renderReview(); }
+  else { originWizard = {step:'shot', shot:null}; renderOriginButtons(); }
+}
+document.getElementById('originClearBtn').addEventListener('click', ()=>{
+  const r = currentReviewRally(); if(!r) return;
+  r.origin = null;
+  saveDB();
+  renderOriginStatus();
+  renderRecentRecords();
+});
+document.getElementById('originNoneBtn').addEventListener('click', ()=>{
+  const session = getCurrentSession();
+  const lost = lostRallies(session);
+  if(reviewIndex < lost.length-1){ reviewIndex++; renderReview(); }
+  else { alert('最後の失点ラリーです。'); }
+});
+</script>
+
+<script>
+/* ==========================================================================
+   ダッシュボード
+   ========================================================================== */
+let currentDashTab = 'dist';
+
+document.getElementById('dashSubtabs').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-d]');
+  if(!btn) return;
+  currentDashTab = btn.dataset.d;
+  document.querySelectorAll('#dashSubtabs button').forEach(b=>b.classList.toggle('active', b===btn));
+  renderDashboard();
+});
+document.querySelectorAll('input[name=scopeMode]').forEach(r=>{
+  r.addEventListener('change', renderDashboard);
+});
+
+function getScopeSessions(){
+  const mode = document.querySelector('input[name=scopeMode]:checked').value;
+  if(mode==='all') return db.sessions;
+  const s = getCurrentSession();
+  return s ? [s] : [];
+}
+function flatRallies(sessions){
+  const out = [];
+  sessions.forEach(s=> s.rallies.forEach(r=> out.push({session:s, rally:r})) );
+  return out;
+}
+
+function renderDashboard(){
+  const el = document.getElementById('dashContent');
+  const sessions = getScopeSessions();
+  if(sessions.length===0 || flatRallies(sessions).length===0){
+    el.innerHTML = '<div class="empty-msg">対象データがありません。まず「記録」タブでラリーを記録してください。</div>';
+    return;
+  }
+  if(currentDashTab==='dist') return renderDistView(el, sessions);
+  if(currentDashTab==='cross') return renderCrossView(el, sessions);
+  if(currentDashTab==='origin') return renderOriginView(el, sessions);
+  if(currentDashTab==='actor') return renderActorView(el, sessions);
+  if(currentDashTab==='trend') return renderTrendView(el, sessions);
+  if(currentDashTab==='csv') return renderCsvView(el, sessions);
+}
+
+/* ---- ①失点分布: ショット種×欠陥 ヒートマップ的テーブル ---- */
+function renderDistView(el, sessions){
+  const items = flatRallies(sessions).map(x=>x.rally).filter(r=>r.result==='lost');
+  const table = {};
+  SHOT_TYPES.forEach(s=>{ table[s.code]={}; DEFECTS.forEach(d=> table[s.code][d.code]=0); });
+  const specialCounts = {}; SPECIAL_CAUSES.forEach(sp=> specialCounts[sp.code]=0);
+  items.forEach(r=>{
+    if(isSpecialCause(r.shot)){ specialCounts[r.shot] = (specialCounts[r.shot]||0)+1; return; }
+    if(table[r.shot] && r.defect!=null) table[r.shot][r.defect]++;
+  });
+  const maxCnt = Math.max(1, ...SHOT_TYPES.flatMap(s=>DEFECTS.map(d=>table[s.code][d.code])));
+  let html = '<h2>① 失点の分布(ショット種 × 欠陥)</h2>';
+  html += `<p style="font-size:.75em;color:var(--sub);">対象失点ラリー数: ${items.length}</p>`;
+  html += '<table class="stat-table"><thead><tr><th>ショット\\欠陥</th>' + DEFECTS.map(d=>`<th>${d.label}</th>`).join('') + '<th>計</th></tr></thead><tbody>';
+  SHOT_TYPES.forEach(s=>{
+    const rowTotal = DEFECTS.reduce((a,d)=>a+table[s.code][d.code],0);
+    html += `<tr><td class="rowhead">${s.label}</td>`;
+    DEFECTS.forEach(d=>{
+      const c = table[s.code][d.code];
+      const alpha = c/maxCnt;
+      html += `<td class="heat-cell" style="background:rgba(192,57,43,${(alpha*0.55).toFixed(2)})"><span class="cnt">${c||''}</span></td>`;
+    });
+    html += `<td><strong>${rowTotal}</strong></td></tr>`;
+  });
+  html += '</tbody></table>';
+  html += '<h3 style="font-size:.85em;margin-top:14px;">特殊原因の件数</h3>';
+  html += '<table class="stat-table"><thead><tr>' + SPECIAL_CAUSES.map(sp=>`<th>${sp.label.replace(/\n/g,'')}</th>`).join('') + '</tr></thead><tbody><tr>';
+  SPECIAL_CAUSES.forEach(sp=> html += `<td>${specialCounts[sp.code]}</td>`);
+  html += '</tr></tbody></table>';
+  el.innerHTML = html;
+}
+
+/* ---- ②クロス集計: ショット種 × 局面 ---- */
+function renderCrossView(el, sessions){
+  const items = flatRallies(sessions).map(x=>x.rally).filter(r=>r.result==='lost');
+  const allShotCodes = [...SHOT_TYPES.map(s=>s.code), ...SPECIAL_CAUSES.map(s=>s.code)];
+  const table = {}; allShotCodes.forEach(c=>{ table[c]={serve:0,early:0,rally:0}; });
+  items.forEach(r=>{ if(table[r.shot]) table[r.shot][r.phase]++; });
+  let html = '<h2>② クロス集計: ショット種 × 局面</h2>';
+  html += `<p style="font-size:.75em;color:var(--sub);">対象失点ラリー数: ${items.length}(ダブルスはサーブ周りに集中しやすい傾向に注目)</p>`;
+  html += '<table class="stat-table"><thead><tr><th>ショット/原因</th>' + PHASES.map(p=>`<th>${p.label.replace(/\n/g,'')}</th>`).join('') + '<th>計</th></tr></thead><tbody>';
+  allShotCodes.forEach(code=>{
+    const row = table[code];
+    const total = row.serve+row.early+row.rally;
+    if(total===0) return;
+    html += `<tr><td class="rowhead">${shotLabel(code)}</td><td>${row.serve}</td><td>${row.early}</td><td>${row.rally}</td><td><strong>${total}</strong></td></tr>`;
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+/* ---- ③起点分析: 起点ショット×欠陥 分布 vs 最終ショット分布 ---- */
+function renderOriginView(el, sessions){
+  const items = flatRallies(sessions).map(x=>x.rally).filter(r=>r.result==='lost');
+  const withOrigin = items.filter(r=>r.origin);
+  const finalDist = {}; const originDist = {};
+  SHOT_TYPES.forEach(s=>{ finalDist[s.code]=0; originDist[s.code]=0; });
+  items.forEach(r=>{ if(finalDist[r.shot]!==undefined) finalDist[r.shot]++; });
+  withOrigin.forEach(r=>{ if(originDist[r.origin.shot]!==undefined) originDist[r.origin.shot]++; });
+
+  let html = '<h2>③ 起点分析</h2>';
+  html += `<p style="font-size:.75em;color:var(--sub);">起点マーク済み: ${withOrigin.length} / 失点ラリー: ${items.length}件(起点は任意のためレビュー未実施分は含まれません)</p>`;
+  html += '<table class="stat-table"><thead><tr><th>ショット種</th><th>最終ショット分布</th><th>起点分布</th></tr></thead><tbody>';
+  SHOT_TYPES.forEach(s=>{
+    html += `<tr><td class="rowhead">${s.label}</td><td>${finalDist[s.code]}</td><td>${originDist[s.code]}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  html += '<p style="font-size:.75em;color:var(--sub);margin-top:10px;">「最終ショット」に多いショットと「起点」に多いショットがズレている場合、直接の失点原因と、練習で本当に潰すべき展開のクセが異なることを示します。</p>';
+  el.innerHTML = html;
+}
+
+/* ---- ④自責/パートナー/相手強制の比率 ---- */
+function renderActorView(el, sessions){
+  const items = flatRallies(sessions).map(x=>x.rally).filter(r=>r.result==='lost');
+  let self=0, partner=0, forced=0;
+  items.forEach(r=>{
+    if(r.shot==='FORCED'){ forced++; return; }
+    if(r.actor==='partner') partner++; else self++;
+  });
+  const total = Math.max(1, self+partner+forced);
+  let html = '<h2>④ 自責 / パートナー / 相手強制の比率</h2>';
+  html += `<p style="font-size:.75em;color:var(--sub);">対象失点ラリー数: ${self+partner+forced}</p>`;
+  html += barChartSVG(
+    ['自分','パートナー','相手の決定打(非自責)'],
+    [self, partner, forced],
+    ['#c0392b','#b8860b','#4a5c50']
+  );
+  html += `<p style="font-size:.8em;margin-top:8px;">自分: ${self}件(${Math.round(self/total*100)}%) / パートナー: ${partner}件(${Math.round(partner/total*100)}%) / 相手強制: ${forced}件(${Math.round(forced/total*100)}%)</p>`;
+  el.innerHTML = html;
+}
+
+/* ---- ⑤セッション推移: 特定セル(ショット×欠陥)の失点率の時系列 ---- */
+function renderTrendView(el, sessions){
+  let html = '<h2>⑤ セッション推移</h2>';
+  html += '<div class="row"><label>対象セル:</label><select class="cell-select" id="trendCellSelect">';
+  SHOT_TYPES.forEach(s=> DEFECTS.forEach(d=>{
+    html += `<option value="${s.code}|${d.code}">${s.label}×${d.label}</option>`;
+  }));
+  html += '</select></div><div id="trendChartArea" style="margin-top:10px;"></div>';
+  el.innerHTML = html;
+  document.getElementById('trendCellSelect').addEventListener('change', ()=>drawTrendChart(sessions));
+  drawTrendChart(sessions);
+}
+function drawTrendChart(sessions){
+  const sel = document.getElementById('trendCellSelect');
+  const [shot, defect] = sel.value.split('|');
+  const ordered = sessions.slice().sort((a,b)=> a.date.localeCompare(b.date));
+  const labels = [];
+  const rates = [];
+  ordered.forEach(s=>{
+    const lost = s.rallies.filter(r=>r.result==='lost');
+    if(lost.length===0) return;
+    const hit = lost.filter(r=>r.shot===shot && r.defect===defect).length;
+    labels.push(s.date.slice(5));
+    rates.push(Math.round(hit/lost.length*1000)/10);
+  });
+  const area = document.getElementById('trendChartArea');
+  if(labels.length===0){ area.innerHTML = '<div class="empty-msg">表示できるセッションがありません</div>'; return; }
+  area.innerHTML = barChartSVG(labels, rates, labels.map(()=>'#1f6b46'), '%');
+}
+
+/* ---- ⑥CSVエクスポート ---- */
+function renderCsvView(el, sessions){
+  const csv = buildCSV(sessions);
+  let html = '<h2>⑥ CSVエクスポート</h2>';
+  html += '<p style="font-size:.78em;color:var(--sub);">ラリー単位のフラットなCSV(origin列を含む)。ヘッダは英語コード+日本語ラベル併記。Claudeに渡して深掘り分析する用途を想定。</p>';
+  html += '<div class="util-row"><button class="link-btn" id="downloadCsvBtn">CSVをダウンロード</button></div>';
+  html += '<div class="csv-pre" style="margin-top:8px;">' + escapeHtml(csv.slice(0,3000)) + (csv.length>3000?'\n...(以下省略、ダウンロードして全件確認)':'') + '</div>';
+  el.innerHTML = html;
+  document.getElementById('downloadCsvBtn').addEventListener('click', ()=>{
+    downloadText(csv, `badminton_rallies_${new Date().toISOString().slice(0,10)}.csv`, 'text/csv');
+  });
+}
+function buildCSV(sessions){
+  const headers = [
+    'session_date(セッション日付)','session_label(ラベル)','partner(パートナー)',
+    'seq(通番)','game(ゲーム)','result(結果)','phase(局面)',
+    'shot(ショット種/特殊原因)','defect(欠陥)','win_cause(得点原因)',
+    'actor(主体)','serving_side(サーブ権)','video_time(動画時刻秒)',
+    'origin_shot(起点ショット種)','origin_defect(起点欠陥)','origin_video_time(起点動画時刻秒)',
+    'memo(メモ)'
+  ];
+  const rows = [headers.join(',')];
+  sessions.forEach(s=>{
+    s.rallies.forEach(r=>{
+      const cells = [
+        s.date, csvEsc(s.label), csvEsc(s.partner),
+        r.seq, r.game, r.result, r.phase,
+        r.shot||'', r.defect||'', r.winCause||'',
+        r.actor||'', r.servingSide||'', r.videoTime!==null?r.videoTime:'',
+        r.origin?r.origin.shot:'', r.origin?r.origin.defect:'', r.origin&&r.origin.videoTime!==null?r.origin.videoTime:'',
+        csvEsc(r.memo||'')
+      ];
+      rows.push(cells.join(','));
+    });
+  });
+  return rows.join('\n');
+}
+function csvEsc(v){
+  if(v===undefined||v===null) return '';
+  const s = String(v);
+  if(s.includes(',')||s.includes('"')||s.includes('\n')) return '"' + s.replace(/"/g,'""') + '"';
+  return s;
+}
+function escapeHtml(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function downloadText(text, filename, mime){
+  const blob = new Blob([text], {type:mime+';charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ---- 簡易SVG棒グラフ(依存ゼロ) ---- */
+function barChartSVG(labels, values, colors, unit){
+  unit = unit || '';
+  const w = 320, h = 160, padL = 30, padB = 40, padT = 10, padR = 10;
+  const maxV = Math.max(1, ...values);
+  const bw = (w - padL - padR) / values.length;
+  let bars = '';
+  values.forEach((v,i)=>{
+    const bh = (h-padT-padB) * (v/maxV);
+    const x = padL + i*bw + bw*0.15;
+    const bwid = bw*0.7;
+    const y = h - padB - bh;
+    const color = Array.isArray(colors) ? colors[i] : colors;
+    bars += `<rect x="${x}" y="${y}" width="${bwid}" height="${bh}" fill="${color}" rx="3"></rect>`;
+    bars += `<text x="${x+bwid/2}" y="${y-4}" font-size="9" text-anchor="middle" fill="#132018">${v}${unit}</text>`;
+    bars += `<text x="${x+bwid/2}" y="${h-padB+14}" font-size="9" text-anchor="middle" fill="#4a5c50">${labels[i]}</text>`;
+  });
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">
+    <line x1="${padL}" y1="${h-padB}" x2="${w-padR}" y2="${h-padB}" stroke="#cfe0d5"></line>
+    ${bars}
+  </svg>`;
+}
+</script>
+
+<script>
+/* ==========================================================================
+   JSONバックアップ(全データ書き出し/読み込み)
+   ========================================================================== */
+document.getElementById('exportJsonBtn').addEventListener('click', ()=>{
+  const json = JSON.stringify(db, null, 2);
+  downloadText(json, `badminton_data_${new Date().toISOString().slice(0,10)}.json`, 'application/json');
+  meta.dirty = false;
+  meta.lastExportAt = new Date().toISOString();
+  saveMeta();
+  renderDirtyIndicator();
+});
+document.getElementById('importJsonInput').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  if(!confirm('現在のデータは上書きされます。読み込みますか？')) { e.target.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    try{
+      const parsed = JSON.parse(ev.target.result);
+      if(!parsed || !Array.isArray(parsed.sessions)) throw new Error('不正な形式です');
+      db = parsed;
+      db.schemaVersion = db.schemaVersion || 1;
+      meta.currentSessionId = db.sessions.length ? db.sessions[0].id : null;
+      meta.dirty = false;
+      saveDB(); saveMeta();
+      ensureSession();
+      renderSessionSelect();
+      onSessionSwitched();
+      alert('読み込みました');
+    }catch(err){
+      alert('読み込みに失敗しました: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+});
+</script>
+
+</body>
+</html>
